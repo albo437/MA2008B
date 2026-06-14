@@ -270,9 +270,7 @@ def compute_adj_stats(shelves_dict, ac, N_H, method_name):
         stats['sum_alpha_over_NH'] += sum_a
         stats['pairs_per_shelf'].append(n_pairs)
         stats['hits_per_shelf'].append(n_hits)
-
-    return stats
-
+        
 ilp_stats = compute_adj_stats(ilp_shelves, ac, N_H, "ILP")
 h_stats = compute_adj_stats(h_shelves, ac, N_H, "Heurística")
 

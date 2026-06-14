@@ -1,0 +1,180 @@
+NORMALIZED COLUMNS:
+  SEGMENTO_ID
+  MUEBLE_ID
+  PLANOGRUPO
+  PLAN_EJECUCION
+  CONJUNTO_ID
+  TAMANO_POST
+  DIRECCION_LEGO_ID
+  UPC_CVE
+  ITEM_DESC
+  CHAROLA
+  UBICACION_BANDEJA
+  NUM_FRENTES
+  ALTO
+  ANCHO
+  WIDTH
+  HEIGHT
+  X
+  Y
+  DISENO_REFERENCIA
+  SEPARADOR
+  SQUEEZE
+  STAGE_ID
+  EXECUTION_DATE
+  TYPE
+  DESC1
+  UNIDADES_X_FRENTE
+  PROFUNDO
+  CATEGORIA_PRODUCTO
+  LEGO_ID
+  CAMAS
+
+Loaded 43 planograms.
+
+NORMALIZED COLUMNS:
+  SEGMENTO_ID
+  MUEBLE_ID
+  PLANOGRUPO
+  TAMANO_POST
+  DIRECCION_LEGO_ID
+  UPC_CVE
+  NUM_FRENTES
+  CHAROLA
+  UBICACION_BANDEJA
+  ANCHO
+  ITEM_DESC
+  ALTO
+  PROFUNDO
+
+Spatial columns (X, Y, WIDTH, HEIGHT) not found — deriving layout from CHAROLA + TAMANO
+
+Variant reconstruction: 5893 total → 5571 kept (>= 95% coverage)
+
+Loaded 5571 planograms.
+[14:41:44]   |H_BCO| = 951, N_H = 951
+[14:41:44]   Pares adj. con freq>0: 9913
+[14:41:44]   Template: BCO | CF | Refrescos | Tamaño=3.0 | Dir=ID | Conjunto=10MON (92 productos)
+[14:41:44] ======================================================================
+[14:41:44] INVESTIGACIÓN: DESCOMPOSICIÓN DE Φ_adj
+[14:41:44] ======================================================================
+[14:41:44] 
+--- 1. Distribución de α_pq ---
+[14:41:44]   Total pares posibles C(92,2) = 4186
+[14:41:44]   Pares con α>0: 1173 (28.0%)
+[14:41:44]   Pares con α=0: 3013 (72.0%)
+[14:41:44]   α_pq estadísticas (nonzero): min=1, max=1046, mean=44.2, median=9.0
+[14:41:44]   α_pq/N_H (nonzero): min=0.0011, max=1.0999, mean=0.0465
+[14:41:44] 
+--- 2. Resolviendo ILP (λ1=1, λ2=0.5) ---
+[14:59:23]   Status: Optimal, Tiempo: 1058.0s
+[14:59:23] 
+--- 3. Ejecutando heurística ---
+[14:59:23] 
+--- 4. Análisis por charola ---
+
+Métrica                                      ILP   Heurística
+--------------------------------------------------------------
+Productos totales                             92           93
+Charolas usadas                               18           18
+Productos/charola (media)                    5.1          5.2
+Productos/charola (max)                        8            8
+Pares en misma charola (total)               201          218
+Pares con α>0 (hits)                         147          218
+Hit rate (hits/pares)                     0.7313       1.0000
+Σ α_pq/N_H (co-located pairs)            11.6856      21.1945
+
+Normalización                                ILP   Heurística
+--------------------------------------------------------------
+Φ_adj (÷ C(n,2) = {len(pairs)})         0.002792     0.005063
+Φ_adj (÷ pares_reales)                  0.058137     0.097223
+[14:59:23] 
+--- 5. Causa raíz ---
+
+ANÁLISIS DE CAUSA RAÍZ
+======================
+
+El ILP define Φ_adj como:
+  Φ_adj = (1/C(n,2)) · Σ_s Σ_(p<q) (α_pq/N_H) · y_pqs
+
+Denominador: C(92,2) = 4,186 pares posibles
+Pero solo 201 pares están realmente co-localizados
+(es decir, y_pqs=1 para solo 201 de los 75,348 posibles y).
+
+El problema es que:
+1. La mayoría de pares NO están en la misma charola → y_pqs = 0
+2. Los que sí (α_pq/N_H) son valores muy pequeños (N_H = 951)
+3. Dividir por C(n,2) = 4186 diluye aún más el valor
+4. El ILP concentra productos en MENOS charolas (18 charolas usadas)
+   vs la heurística (18 charolas)
+5. La heurística hereda la estructura del template que ya tiene
+   pares co-ocurrentes por diseño
+
+Resultado: el denominador C(n,2) hace que Φ_adj sea siempre ≈ 0
+para problemas grandes, porque la mayoría de pares no comparten charola.
+
+[14:59:23] 
+--- 6. Diferencia entre métricas ---
+
+MÉTRICAS DE evaluate_rule_adherence (heurística):
+  adjacency_hit_rate     = 1.0000  (hits/pares_en_charola)
+  adjacency_weighted     = 0.0972  (Σ α/N_H / pares_en_charola)
+
+MÉTRICAS del ILP (Φ_adj formula):
+  Φ_adj                  = 0.002792  (Σ α/N_H / C(n,2))
+
+Son métricas DIFERENTES:
+  - hit_rate: ¿qué fracción de pares co-localizados tienen α>0?
+  - Φ_adj:    ¿cuánta co-ocurrencia histórica hay, normalizada por TODOS los pares posibles?
+
+La heurística tiene hit_rate alto porque hereda pares del template.
+El ILP tiene Φ_adj bajo porque divide por C(n,2) = 4186 pares enormes.
+
+[14:59:23] 
+--- 7. ILP con normalización alternativa ---
+[14:59:23]   Resolviendo ILP con Φ_adj = Σ_s Σ_(p<q) I(α>0)·y / (Σ_s Σ y) ...
+[14:59:23]   (Esto maximiza la fracción de pares co-localizados que tienen historial)
+[14:59:23]   Pares (p,q) con α>0 en P_set: 1173/4186
+[15:29:03]   Status: Optimal, Tiempo: 1778.5s
+
+Métrica                              ILP (α/N_H)   ILP (hits)   Heurística
+---------------------------------------------------------------------------
+Productos colocados                           92           92           93
+Pares en misma charola                       201          204          218
+Pares con α>0 (hits)                         147          155          218
+Hit rate                                  0.7313       0.7598       1.0000
+Φ_adj (÷ C(n,2))                        0.002792     0.001686     0.005063
+Φ_nivel                                   0.5236       0.4655   Heurística
+Φ_nivel (corregido)                       0.5236       0.4655       0.4858
+
+
+CONCLUSIONES
+============
+
+1. LA DISCREPANCIA ES POR LA NORMALIZACIÓN, NO POR LA OPTIMIZACIÓN
+
+   El ILP calcula Φ_adj = Σ(α_pq/N_H · y_pqs) / C(n,2)
+   - Numerador: solo los y_pqs=1 (pares en misma charola) contribuyen
+   - Denominador: C(92,2) = 4186 pares → muy grande
+
+   La heurística (perturbation_test) mide:
+   - adjacency_hit_rate = hits / pares_en_misma_charola
+   - Denominador: solo pares realmente co-localizados → mucho menor
+
+   Resultado: son métricas INCOMPARABLES.
+
+2. LA HEURÍSTICA HEREDA PARES CO-OCURRENTES DEL TEMPLATE
+
+   La heurística copia la estructura del template (que tiene hit_rate ≈ 1.0).
+   El ILP asigna desde cero, sin esta ventaja.
+
+3. EL ILP SÍ OPTIMIZA CORRECTAMENTE SU Φ_adj
+
+   Pero su Φ_adj está dominado por Φ_nivel porque:
+   - Φ_nivel ≈ 0.5 (escala significativa)
+   - Φ_adj ≈ 0.003 (escala diminuta por la normalización)
+   - Con λ2=0.5, la contribución de adj al objetivo es ≈ 0.0015
+
+4. PARA COMPARAR JUSTAMENTE:
+   - Usar la misma métrica (hit_rate o Φ_adj) para ambos
+   - O bien: cambiar la normalización del ILP a pares co-localizados
