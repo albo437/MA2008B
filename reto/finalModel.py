@@ -601,6 +601,9 @@ for pi, original in enumerate(planograms_orig):
 
         m = evaluate_rule_adherence(r['planogram'], r.get('rules', orig_rules), catalog)
 
+        # Contar charolas del planograma generado
+        n_shelves = len(r['planogram'].shelves) if r['planogram'] else 0
+
         results.append({
             'plano': pi, 'swap': sf, 'source': f'gen_{sf:.0%}_swap',
             'seg': original.segmento_id, 'mueble': original.mueble_id,
@@ -614,6 +617,14 @@ for pi, original in enumerate(planograms_orig):
             'coverage': m['n_products_placed'] / len(target),
             'time': r['time_bilp'],
             'status': r['status'],
+            # Tamaño del problema
+            'n_vars': r.get('n_vars', 0),
+            'n_cons': r.get('n_cons', 0),
+            'n_keep': r.get('n_keep', 0),
+            'n_new': r.get('n_new', 0),
+            'n_gone': r.get('n_gone', 0),
+            'n_shelves': n_shelves,
+            'overlap': r.get('overlap', 0),
         })
 
     if (pi + 1) % 10 == 0:
@@ -656,6 +667,46 @@ for sf in swap_fracs:
           f"{gen['coverage'].mean()-1.0:>+9.1%}")
 
 # %%
+# TABLA 3: TAMAÑO DEL PROBLEMA POR NIVEL DE PERTURBACIÓN
+log("\nTABLA 3: TAMAÑO DEL PROBLEMA")
+print(f"\n{'Swap':>6} | {'|P_t|':>6} {'|P_keep|':>8} {'|P_gone|':>8} {'|P_new|':>7} "
+      f"{'|S|':>5} {'Overlap':>8} | {'Vars':>6} {'Cons':>6} {'Params':>7} | {'t(s)':>6}")
+print("-" * 95)
+
+for sf in [0.0] + swap_fracs:
+    if sf == 0.0:
+        sub = df[df['source'] == 'original']
+        label = 'orig'
+    else:
+        sub = df[df['source'] == f'gen_{sf:.0%}_swap']
+        label = f'{sf:.0%}'
+    if len(sub) == 0:
+        continue
+
+    n_t = sub['n_target'].mean()
+    n_k = sub['n_keep'].fillna(0).mean() if 'n_keep' in sub.columns else 0
+    n_g = sub['n_gone'].fillna(0).mean() if 'n_gone' in sub.columns else 0
+    n_n = sub['n_new'].fillna(0).mean() if 'n_new' in sub.columns else 0
+    n_s = sub['n_shelves'].fillna(0).mean() if 'n_shelves' in sub.columns else 0
+    n_v = sub['n_vars'].fillna(0).mean() if 'n_vars' in sub.columns else 0
+    n_c = sub['n_cons'].fillna(0).mean() if 'n_cons' in sub.columns else 0
+    ov  = sub['overlap'].fillna(0).mean() if 'overlap' in sub.columns else 0
+    t   = sub['time'].mean()
+
+    # Parámetros = π_{pℓ} entries + γ(p,s) entries + W_s^rem + H_s
+    # π: |P_new| × |L| ≈ n_n × 7
+    # γ: |P_new| × |S| = n_v (same as vars)
+    # W_s^rem: |S|
+    # H_s: |S|
+    n_params = int(round(n_n * 7 + n_v + 2 * n_s))
+
+    print(f"{label:>6} | {n_t:>6.0f} {n_k:>8.0f} {n_g:>8.0f} {n_n:>7.0f} "
+          f"{n_s:>5.0f} {ov:>8.0f} | {n_v:>6.0f} {n_c:>6.0f} {n_params:>7} | {t:>6.2f}")
+
+print(f"\nNota: Vars = |P_new| × |S|, Cons ≈ |P_new| + |S| + pares(h_p > H_s)")
+print(f"      Params = π (|P_new|×7 niveles) + γ (|P_new|×|S|) + W^rem (|S|) + H_s (|S|)")
+
+# %%
 # Histograma de tiempos de ejecución
 gen_df = df[df['source'] != 'original']
 fig, axes = plt.subplots(1, 3, figsize=(15, 4))
@@ -696,7 +747,7 @@ log(f"Gráfica: {OUTPUT_DIR}/stats_overview.png")
 
 # %%
 # Tabla por segmento
-log("\nTABLA 3: RESULTADOS POR SEGMENTO (20% swap)")
+log("\nTABLA 4: RESULTADOS POR SEGMENTO (20% swap)")
 gen20 = df[(df['swap'] == 0.20)]
 if len(gen20) > 0:
     seg_summary = gen20.groupby('seg').agg({
